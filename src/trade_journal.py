@@ -177,8 +177,11 @@ class TradeJournal:
             print("No hay trades cerrados.")
             return
 
+        print("\n" + "="*100)
+        print("  EAGLESEYE TRANSACTION LOG - STANDARD v2.0")
+        print("="*100)
         print(df.to_string(index=False))
-        print()
+        print("="*100)
 
         total_pnl = df["PnL"].sum()
         wins = (df["Result"] == "TP").sum()
@@ -202,6 +205,7 @@ class TradeJournal:
         print(f"Avg Win:        {avg_win:>12,.2f}")
         print(f"Avg Loss:       {avg_loss:>12,.2f}")
         print(f"Avg Duration:   {avg_dur:>12s}")
+        print("="*100 + "\n")
 
     # ------------------------------------------------------------------
     # Internos

@@ -181,6 +181,8 @@ Los costes se aplican por lado: entrada suma coste, salida resta coste (longs) o
 | Estrategia | Activo | Fecha WFA | PF OOS | Meses+ | Veredicto | Riesgo | Script |
 |-----------|--------|----------|--------|--------|-----------|--------|--------|
 | PivotActiveWinner v1.1.0 | US30 3m | 2026-02-28 | **1.158** | 4/11 (36%) | 5/7 criterios | **Controlado (0.5%)** | `validate_pivotactivewinner_wfa.py` |
+| GBPJPYZGap v2.5.0 | GBP/JPY 1H | 2026-03-02 | **1.354** | 35/64 (55%) | 5/7 criterios | **Controlado (0.5%)** | `validate_gbpjpyzgap_wfa.py` |
+| BTCZGap v5.8.0 | BTC/USDT 1H | 2026-03-02 | **1.843** | 108/197 (55%) | 7/7 criterios | **Producción (1.0%)** | `validate_btczgap_v5_8_gold.py` |
 
 ---
 
