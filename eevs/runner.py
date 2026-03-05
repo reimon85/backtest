@@ -1,12 +1,16 @@
 """EEVS runner — CLI entry point.
 
 Usage:
-    python -m eevs.runner run --strategy znas100
-    python -m eevs.runner verify file_a.csv file_b.csv
+    python -m eevs run --strategy znas100
+    python -m eevs optimize --strategy znas100 --tp 300,350,400 --sl 200,250,300
+    python -m eevs verify file_a.csv file_b.csv
 """
 
 import argparse
 import sys
+import copy
+from rich.console import Console
+from rich.table import Table
 
 from .config import StrategyConfig
 from .data_factory import build_dataframe
@@ -65,6 +69,67 @@ def cmd_run(args):
     print(f"SHA-256:   {sha}")
 
 
+def cmd_optimize(args):
+    """Run grid search optimization over production simulator."""
+    _register_strategies()
+    console = Console()
+
+    if args.strategy not in STRATEGIES:
+        print(f"Unknown strategy: {args.strategy}")
+        sys.exit(1)
+
+    make_config, signal_fn = STRATEGIES[args.strategy]
+    base_config = make_config(data_path=args.data) if args.data else make_config()
+
+    # Parse ranges
+    tp_range = [float(x) for x in args.tp.split(",")] if args.tp else [base_config.params["tp_points"]]
+    sl_range = [float(x) for x in args.sl.split(",")] if args.sl else [base_config.params["sl_points"]]
+
+    print(f"Loading data: {base_config.data_path}")
+    df = build_dataframe(base_config)
+    
+    results = []
+    
+    table = Table(title=f"EEVS Optimization — {args.strategy}")
+    table.add_column("TP", justify="right")
+    table.add_column("SL", justify="right")
+    table.add_column("Trades", justify="right")
+    table.add_column("WR%", justify="right")
+    table.add_column("PnL Pts", justify="right", style="green")
+    table.add_column("PF", justify="right", style="bold cyan")
+
+    with console.status("[bold green]Running Grid Search...") as status:
+        for tp in tp_range:
+            for sl in sl_range:
+                # Create a temporary config variant
+                cfg = copy.deepcopy(base_config)
+                cfg.params["tp_points"] = tp
+                cfg.params["sl_points"] = sl
+                
+                trades = simulate(df, cfg, signal_fn)
+                if not trades:
+                    continue
+                
+                report = generate_report(trades, cfg)
+                m = report["compound"]
+                
+                results.append({
+                    "tp": tp, "sl": sl, "trades": m["total_trades"],
+                    "wr": m["wr_oos"], "pnl": m["pnl_pts"], "pf": m["pf_oos"]
+                })
+
+    # Sort by PF
+    sorted_res = sorted(results, key=lambda x: x["pf"], reverse=True)
+    
+    for r in sorted_res:
+        table.add_row(
+            f"{r['tp']:.1f}", f"{r['sl']:.1f}", str(r['trades']),
+            f"{r['wr']:.1f}%", f"{r['pnl']:+.1f}", f"{r['pf']:.3f}"
+        )
+
+    console.print(table)
+
+
 def cmd_verify(args):
     """Compare two audit CSVs trade by trade."""
     result = verify_audit(args.file_a, args.file_b)
@@ -87,16 +152,23 @@ def cmd_verify(args):
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="eevs.runner",
+        prog="eevs",
         description="EEVS — EaglesEye Validation Standard",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
     # run
     p_run = sub.add_parser("run", help="Run WFA validation")
-    p_run.add_argument("--strategy", "-s", required=True, help="Strategy name (e.g. znas100)")
+    p_run.add_argument("--strategy", "-s", required=True, help="Strategy name")
     p_run.add_argument("--data", "-d", help="Override data file path")
-    p_run.add_argument("--output", "-o", help="Output directory (default: eevs_output)")
+    p_run.add_argument("--output", "-o", help="Output directory")
+
+    # optimize
+    p_opt = sub.add_parser("optimize", help="Run grid search optimization")
+    p_opt.add_argument("--strategy", "-s", required=True, help="Strategy name")
+    p_opt.add_argument("--tp", help="TP range (comma separated)")
+    p_opt.add_argument("--sl", help="SL range (comma separated)")
+    p_opt.add_argument("--data", "-d", help="Override data file path")
 
     # verify
     p_verify = sub.add_parser("verify", help="Compare two audit CSVs")
@@ -107,6 +179,8 @@ def main():
 
     if args.command == "run":
         cmd_run(args)
+    elif args.command == "optimize":
+        cmd_optimize(args)
     elif args.command == "verify":
         cmd_verify(args)
 
